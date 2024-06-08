@@ -5,7 +5,6 @@ from PIL import ImageTk, Image
 import numpy as np
 import cv2
 
-#load the trained model to classify sign
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Model
@@ -14,15 +13,15 @@ from pickle import dump, load
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tensorflow.keras.initializers import Orthogonal
 
+from services.GPTService import gpt_service
+
 custom_objects = {'Orthogonal': Orthogonal}
 base_model = InceptionV3(weights = 'inception_v3_weights_tf_dim_ordering_tf_kernels.h5')
 vgg_model = Model(base_model.input, base_model.layers[-2].output)
 
 def preprocess_img(img_path):
-    #inception v3 excepts img in 299*299
     img = load_img(img_path, target_size = (299, 299))
     x = img_to_array(img)
-    # Add one more dimension
     x = np.expand_dims(x, axis = 0)
     x = preprocess_input(x)
     return x
@@ -112,27 +111,24 @@ label2=Label(top,background='#CDCDCD', font=('arial',15))
 label1=Label(top,background='#CDCDCD', font=('arial',15))
 label=Label(top,background='#CDCDCD', font=('arial',15))
 sign_image = Label(top)
+
 def classify(file_path):
     global label_packed
     enc = encode(file_path)
     image = enc.reshape(1, 2048)
-    pred = greedy_search(image)
-    print(pred)
-    label.configure(foreground='#000', text= 'Greedy: ' + pred)
-    label.pack(side=BOTTOM,expand=True)
     beam_3 = beam_search(image)
-    print(beam_3)
-    label1.configure(foreground='#011638', text = 'Beam_3: ' + beam_3)
-    label1.pack(side = BOTTOM, expand = True)
-    beam_5 = beam_search(image, 5)
-    print(beam_5)
-    label2.configure(foreground='#228B22', text = 'Beam_5: ' + beam_5)
-    label2.pack(side = BOTTOM, expand = True)
+    message = "Mô tả thông tin trên bằng tiếng việt: " + beam_3
+    show_message = gpt_service.chatbot(message, [{"role": "system", "content": "You are a helpful assistant."}])
+    label.configure(foreground='#000', text= 'Kết quả: ' + show_message)
+    label.pack(side=BOTTOM,expand=True)
+    print(show_message)
+
 
 def show_classify_button(file_path):
     classify_b=Button(top,text="Generate",command=lambda: classify(file_path),padx=10,pady=5)
     classify_b.configure(background='#364156', foreground='white',font=('arial',10,'bold'))
     classify_b.place(relx=0.79,rely=0.46)
+    
 def upload_image():
     try:
         file_path=filedialog.askopenfilename()
@@ -147,13 +143,12 @@ def upload_image():
         show_classify_button(file_path)
     except:
         pass
+
 upload=Button(top,text="Upload an image",command=upload_image,padx=10,pady=5)
 upload.configure(background='#364156', foreground='white',font=('arial',10,'bold'))
 upload.pack(side=BOTTOM,pady=50)
 sign_image.pack(side=BOTTOM,expand=True)
 
-
-#label2.pack(side = BOTTOM, expand = True)
 heading = Label(top, text="Caption Generator (Flickr30k)",pady=20, font=('arial',22,'bold'))
 heading.configure(background='#CDCDCD',foreground='#FF6347')
 heading.pack()
